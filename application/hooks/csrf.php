@@ -3,7 +3,7 @@
 * CSRF Protection Class
 * @Edited By Ibrahim Mohamed Abotaleb
 * @Since 21 April 2011
-* Make This Class run Under Codeigniter 2.0 and Using the CI CSRF Configration
+* Make This Class run Under Codeigniter 2.0 and Using the CI CSRF Configration + Create New Key Every POST
 */
 class CSRF_Protection
 {
@@ -42,6 +42,8 @@ class CSRF_Protection
     $this->CI =& get_instance();
     self::$se_token_name=$this->CI->config->item('csrf_cookie_name');
     self::$token_name=$this->CI->config->item('csrf_token_name');
+    // Load session library if not loaded
+    $this->CI->load->library('session');
   }
   
   // -----------------------------------------------------------------------------------
@@ -56,24 +58,23 @@ class CSRF_Protection
    */
   public function generate_token()
   {
-    if ( ! $this->CI->config->item('csrf_protection'))
+    if ( ! $this->CI->config->item('x_csrf_protection'))
     {
       return;
     }
-    // Load session library if not loaded
-    $this->CI->load->library('session');
     
-    if ($this->CI->session->userdata(self::$se_token_name) === FALSE)
+    if ($this->CI->session->flashdata(self::$se_token_name) === FALSE || $_SERVER['REQUEST_METHOD'] == 'POST')
     {
       // Generate a token and store it on session, since old one appears to have expired.
       self::$token = md5(uniqid() . microtime() . rand());
 
-      $this->CI->session->set_userdata(self::$se_token_name, self::$token);
+      $this->CI->session->set_flashdata(self::$se_token_name, self::$token);
     }
     else
     {
+      $this->CI->session->keep_flashdata(self::$se_token_name);
       // Set it to local variable for easy access
-      self::$token = $this->CI->session->userdata(self::$se_token_name);
+      self::$token = $this->CI->session->flashdata(self::$se_token_name);
     }
   }
   
@@ -89,7 +90,7 @@ class CSRF_Protection
    */
   public function inject_tokens()
   {
-    if ( ! $this->CI->config->item('csrf_protection'))
+    if ( ! $this->CI->config->item('x_csrf_protection'))
     {
       // This has to be here otherwise nothing is sent to the browser
       $this->CI->output->_display($this->CI->output->get_output());
@@ -121,7 +122,7 @@ class CSRF_Protection
    */
   public function validate_tokens()
   {  
-    if ( ! $this->CI->config->item('csrf_protection'))
+    if ( ! $this->CI->config->item('x_csrf_protection'))
     {
       return;
     }
@@ -132,7 +133,7 @@ class CSRF_Protection
     {
       // Is the token field set and valid?
       $posted_token = $this->CI->input->post(self::$token_name);
-      if ($posted_token === FALSE || $posted_token != $this->CI->session->userdata(self::$se_token_name))
+      if ($posted_token === FALSE || $posted_token != $this->CI->session->flashdata(self::$se_token_name))
       {
         // Invalid request, send error 400.
         show_error('Request was invalid. Tokens did not match.', 400);
